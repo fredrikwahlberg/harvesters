@@ -8,13 +8,8 @@ import json
 import os.path
 import re
 
-if __name__ == '__main__':
-    from base import DataLoaderBase
-else:
-    from .base import DataLoaderBase
 
-
-class Waller(DataLoaderBase):
+class Waller():
     def __init__(self, datapath, verbose=False):
         super(Waller, self).__init__()
         self.reprname = "Waller"
@@ -51,8 +46,10 @@ class Waller(DataLoaderBase):
             yield data
 
     def populate(self):
+        """Populate the data base."""
         downloadCounter = 0
-        for number in range(10000, 50000):
+        # id range is 12062 to 49502
+        for number in range(12050, 49550):
             if str(number) in self.data.keys():
                 respose_code = self.data[str(number)]['response_status_code']
                 if self.verbose:
@@ -204,9 +201,13 @@ class Waller(DataLoaderBase):
             newentry['image_urls'] = images
         self.data[str(number)] = newentry
 
+    def __repr__(self):
+        return "Waller collection, containing %i entries" % len(self.getNumbers())
+
 
 if __name__=='__main__':
-    datapath = "/media/fredrik/UB Storage/tmp/Waller"
-    database = Waller(datapath=datapath, verbose=1)
-    database.populate()
-    database.save()
+    datapath = os.path.expanduser("~/tmp/Waller")
+    db = Waller(datapath=datapath, verbose=1)
+    db.populate()
+    db.save()
+    print(db)
