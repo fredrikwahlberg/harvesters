@@ -458,7 +458,7 @@ if __name__ == '__main__':
     highdef_path = """/media/fredrik/UB Storage/Images/SDHK/HighDef"""
     tmp_path  = os.path.expanduser(tmp_path)
     assert os.path.exists(tmp_path)
-    savefile = os.path.join(tmp_path, "sdhk_metadata.json")
+    savefile = os.path.join(tmp_path, "sdhk_metadata.json.gz")
     harvester = SDHKHarvester(savefile)
     # Popluate
     dl_keys = [n for n in range(1, 50000) if n not in harvester.keys()]
