@@ -11,9 +11,6 @@ import os.path
 import re
 import numpy as np
 
-# TODO Make handler class for json file
-# TODO Make python3 friendly
-
 def download_metadata(number):
     return_dict = {'sdhk' : number}
     try:
@@ -111,6 +108,7 @@ class SDHKHarvester():
                 self.data = json.loads(f.read().decode('utf-8'))
         else:
             self.data = dict()
+        self._good_ids = None
 
     def save(self):
         import gzip
@@ -153,14 +151,22 @@ class SDHKHarvester():
                 self.data[str(d['sdhk'])] = dict()
             for k in d.keys():
                 self.data[str(d['sdhk'])][k] = d[k]
+        if self._good_ids is not None:
+            self._update_good_ids()
+
+    def get_good_ids(self):
+        if self._good_ids is None:
+            self._update_good_ids()
+        import copy
+        return copy.copy(self._good_ids)
+
+    def _update_good_ids(self):
+        self._good_ids = [int(k) for k in self.data.keys() 
+            if not self.data[k]['exception'] and self.data[k]['metadata_status_code']==200]
 
     def keys(self):
         return [int(n) for n in self.data.keys()]
     
-    def get_good_ids(self):
-        return [int(k) for k in self.data.keys() 
-                if not self.data[k]['exception'] and self.data[k]['metadata_status_code']==200]
-
     def clear(self):
         self.data = dict()
 
@@ -203,255 +209,6 @@ class SDHKHarvester():
                     self.data[n].pop(e)
 
 
-#    def getGoodNumbers(self):
-#        ret = []
-#        for n in self._metadata.keys():
-#            d = self._get(n)
-#            keys = ['highdefpath', 'lowdefpath', 'year']
-#            if np.all([k in d for k in keys]) and np.all([k is not None for k in keys]) and d['year'] > 1000:
-#                ret.append(n)
-#        return ret
-
-#    def scanAndMarkBadImages(self):
-#        # Find bad files
-#        basepath = os.path.join(self._processedImagesPath, 'QualityClassification')
-#        from os import listdir
-#        badfiles = [f for f in listdir(os.path.join(basepath, 'Bad')) if os.path.isfile(os.path.join(basepath, 'Bad', f)) ]
-#        # Find codes for files
-#        badcodes = []
-#        for filename in badfiles:
-#            code = int(filename[:filename.find('.')])
-#            badcodes.append(code)
-#        # Set quality flag
-#        for n in self.getNumbers():
-#            if n in badcodes:
-#                self._set(n, 'good_quality', False)
-#            else:
-#                self._set(n, 'good_quality', True)
-#
-#    def loadHighDefImage(self, number):
-#        """Returns the high def image with the correct orientation. Some 
-#        images are loaded strangly flipped."""
-#        # Load image data
-#        I = self._loadHighDefImageUnrotated(number)
-#        J = self.loadLowDefImage(number)
-#        Is = I.shape[0] < I.shape[1]
-#        Js = J.shape[0] < J.shape[1]
-#        if (Is and Js) or (not Is and not Js):
-#            return I
-#        else:
-#            # Flip dims
-#            return np.flipud(np.fliplr((I.transpose())))
-#
-#    def _loadHighDefImageUnrotated(self, number):
-#        md = self._get(number)
-#        assert md is not None, "Missing record " + str(number)
-#        assert 'highdefpath' in md.keys(), "High def image path missing " + str(number)
-#        name = md['highdefpath']
-#        assert os.path.isfile(name), "Error high def in file name"
-##        print("_loadHighDefImageUnrotated.name = %s" % name)
-#        return self._loadCR2(name)
-#
-#    def _loadCR2(self, filename, convert2grayscale=True):
-##        print("_loadCR2.filename = %s" % filename)
-#        assert os.path.isfile(filename), "Error in CR2 file name (%s)" % filename
-#        I = imageio.imread(filename)
-#        I = np.asarray(I, dtype=np.float)
-#        I *= 255/np.max(I.ravel())
-#        I = np.asarray(I, dtype=np.uint8)
-#        if convert2grayscale and I.ndim==3:
-#            from skimage.color import rgb2gray
-#            I = rgb2gray(I)
-#        return I
-#
-#    def loadLowDefImage(self, number, colour=False):
-#        md = self._get(number)
-#        assert md is not None, "Missing record " + str(number)
-#        assert 'lowdefpath'in md.keys(), "Low def image path missing " + str(number)
-#        name = md['lowdefpath']
-#        assert os.path.isfile(name), "Error in lowdef file name, not a file"
-#        if colour:
-#            return cv2.imread(name)
-#        else:
-#            return cv2.imread(name, cv2.IMREAD_GRAYSCALE)
-#        
-#    def _getSegmentedLetter(self, number):
-#        M = self.loadHighDefImage(number)
-#        # Do Otsu binarization of blurred image {0, 1}
-#        blur = cv2.GaussianBlur(M, (5,5), 0)
-#        thresh, bw = cv2.threshold(np.asarray(blur, dtype=np.uint8), 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-#        bw[bw>0]=1
-#        # Find connected components and their areas
-#        contours, hierarchy = cv2.findContours(bw, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-#        ccarea = [cv2.contourArea(c) for c in contours]
-#        # Make mask image with only the lagest CC filled
-#        N = np.zeros(M.shape, dtype=np.uint8)
-#        N[:] = 255
-#        cv2.fillPoly(N, contours[np.argmax(ccarea)], 0)
-#        retval, rect = cv2.floodFill(image=N, mask=np.zeros((N.shape[0]+2, N.shape[1]+2), dtype=np.uint8), seedPoint=(0, 0), newVal=0, flags=cv2.FLOODFILL_FIXED_RANGE)
-#        # Errode 
-#        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (8, 8))
-#        mask =  cv2.erode(N, kernel, iterations = 1)
-#        # After erosion there might be disconnected components
-#        contours, hierarchy = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-#        ccarea2 = [cv2.contourArea(c) for c in contours]
-#        # Returns the bounding rectangle of the largest CC and mask
-#        return cv2.boundingRect(contours[np.argmax(ccarea2)]), mask
-#
-#    def _getLessSegmentedLetter(self, number):
-#        M = self.loadHighDefImage(number)
-#        # Do Otsu binarization of blurred image {0, 1}
-#        blur = cv2.GaussianBlur(M, (5,5), 0)
-#        thresh, bw = cv2.threshold(np.asarray(blur, dtype=np.uint8), 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-#        bw[bw>0]=1
-#        # Find connected components and their areas
-#        _, contours, hierarchy = cv2.findContours(bw, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-#        ccarea = [cv2.contourArea(c) for c in contours]
-#        # Select the largest CC as ROI
-#        roi = np.asarray(cv2.boundingRect(contours[np.argmax(ccarea)]), dtype=np.int)
-#        # Make mask
-#        N = np.zeros(M.shape, dtype=np.uint8)
-#        N[roi[1]:roi[1]+roi[3], roi[0]:roi[0]+roi[2]] = 1
-#        return roi, N
-#
-#    def dataIterator(self, numbers, usecache=True, moreSegmentation=False):
-#        assert not moreSegmentation, "Not implemented"
-#        for number in numbers:
-#            # Check for cached data, else generate data
-#            cachedDataFileName = os.path.join(self._cachedDataPath, "cachedData_" + str(number) + ".npz")
-#            if os.path.exists(cachedDataFileName) and usecache:# or (time.time() - os.path.getmtime(cachedDataFileName)) < 24*60*60:
-#                data = np.load(cachedDataFileName)['data'].tolist()
-#            else:
-##                from ocropus_nlbin import binarize_image
-#                GRAY = np.asarray(self.loadHighDefImage(number), dtype=np.uint8)
-#                highdefshape = np.asarray([GRAY.shape[0], GRAY.shape[1]], dtype=np.int)
-#                # Use only graylevels from segmented part
-##                r, MASK = self._getSegmentedLetter(number)
-#                r, MASK = self._getLessSegmentedLetter(number)
-#                r = np.asarray(r, dtype=np.int)
-#                # Initial Otsu
-##                thresh, bw = cv2.threshold(GRAY[MASK>0], 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-##                BW = GRAY.copy()
-##                BW[GRAY<=thresh] = 255
-##                BW[GRAY>thresh] = 0
-#                # Only keep masked area
-##                BW[MASK==0] = 0
-#                MASK[MASK>0] = 1
-#                # Crop  mask
-##                tmp = MASK[r[1]:r[1]+r[3], r[0]:r[0]+r[2]]
-##                for i in range(2):
-##                    s = np.sum(tmp, axis=(i+1)%2) # Sum over "wrong" axis
-##                    while s[-1] < (tmp.shape[(i+1)%2]*.3) and r[2] >= 500 and r[3] >= 500:
-##                        s = s[:-1]
-##                        if i == 0:
-##                            r[3] -= 1
-##                        else:
-##                            r[2] -= 1
-#                MASK = MASK[r[1]:r[1]+r[3], r[0]:r[0]+r[2]]
-#                GRAY = GRAY[r[1]:r[1]+r[3], r[0]:r[0]+r[2]]
-#                # Re-binarize using the new mask
-#                # Otsu
-##                thresh, bw = cv2.threshold(GRAY[MASK>0], 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-##                BW = GRAY.copy()
-##                BW[GRAY<=thresh] = 255
-##                BW[GRAY>thresh] = 0
-#                # Binarization from ocropus by Tomas Breul et al.
-##                BW = np.asarray(1-binarize_image(np.asarray(GRAY.copy(), dtype=np.float64)), dtype=np.uint8)
-#                # Mask BW
-##                BW *= MASK
-##                BW = self._clearMaskBorder(MASK, BW)
-#                # Crop more at bottom
-##                vertsum = np.sum(BW, axis=1)
-##                cutoff = len(vertsum)
-###                while cutoff >= 500 and np.max(vertsum[cutoff-30:]) < np.median(vertsum):
-##                while cutoff >= 500 and np.max(vertsum[cutoff-80:]) < np.mean(vertsum):
-##                    cutoff -= 20
-##                GRAY = GRAY[:cutoff, :]
-##                MASK = MASK[:cutoff, :]
-##                BW = BW[:cutoff, :]
-##                BW[BW>0] = 255
-##                r[3] = cutoff
-#                roi = np.asarray(r, dtype=np.int)
-#                # Get low def data
-#                GRAY_LOWDEF = self.loadLowDefImage(number, colour=False)
-#                scaleFactor = np.asarray(highdefshape, dtype=np.float64)/np.asarray(GRAY_LOWDEF.shape, dtype=np.float64)
-#                roi_lowdef = np.round(roi.copy() / scaleFactor[[0, 1, 0, 1]])
-#                roi_lowdef = np.asarray(roi_lowdef, dtype=np.int)
-#                GRAY_LOWDEF = GRAY_LOWDEF[roi_lowdef[1]:roi_lowdef[1]+roi_lowdef[3], roi_lowdef[0]:roi_lowdef[0]+roi_lowdef[2]]
-#                MASK_LOWDEF = cv2.resize(MASK.copy(), (int(GRAY_LOWDEF.shape[1]), int(GRAY_LOWDEF.shape[0])), interpolation=cv2.INTER_NEAREST)
-##                BW_LOWDEF = np.asarray(1-binarize_image(np.asarray(GRAY_LOWDEF.copy(), dtype=np.float64)), dtype=np.uint8)
-##                BW_LOWDEF *= MASK_LOWDEF
-##                BW_LOWDEF = self._clearMaskBorder(MASK_LOWDEF, BW_LOWDEF)
-##                BW_LOWDEF[BW_LOWDEF>0] = 255
-#                # Create return data dict
-#                data = {'id': number,
-##                        'bw': np.asarray(BW, dtype=np.uint8),
-#                        'mask': np.asarray(MASK, dtype=np.uint8),
-#                        'roi_lowdef': np.asarray(roi_lowdef, dtype=np.int),
-##                        'bw_lowdef': np.asarray(BW_LOWDEF, dtype=np.uint8),
-#                        'mask_lowdef': np.asarray(MASK_LOWDEF, dtype=np.uint8),
-#                        'highdefshape': highdefshape,
-#                        'roi': roi, 
-#                        'date': self._get(number)['date_as_text'],
-#                        'year': self._get(number)['year'],
-#                        'origin': self._get(number)['origin']}
-#                # Save to cache
-#                np.savez_compressed(cachedDataFileName, data=data)
-#            # Load gray scale data
-#            roi = data['roi']
-#            GRAY = np.asarray(self.loadHighDefImage(number), dtype=np.uint8)
-#            data['gray'] = GRAY[roi[1]:roi[1]+roi[3], roi[0]:roi[0]+roi[2]]
-#            # Get low def data
-#            GRAY_LOWDEF = self.loadLowDefImage(number, colour=False)
-#            roi_lowdef = np.asarray(data['roi_lowdef'], dtype=np.int)
-#            GRAY_LOWDEF = GRAY_LOWDEF[roi_lowdef[1]:roi_lowdef[1]+roi_lowdef[3], roi_lowdef[0]:roi_lowdef[0]+roi_lowdef[2]]
-#            data['gray_lowdef'] = np.asarray(GRAY_LOWDEF, dtype=np.uint8)
-#            yield data
-
-#    def _clearMaskBorder(self, MASK, BW):
-#        """Clear border of MASK in BW"""
-#        BW = BW.copy()
-#        contours, hierarchy = cv2.findContours(MASK.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-#        assert len(contours) != 0, "No mask"
-#        if len(contours) > 1:
-#            print("Multiple foreground areas in mask")
-#        floodfillMask = np.zeros((BW.shape[0]+2, BW.shape[1]+2), dtype=np.uint8)
-#        for p in contours[0]:
-#            p1 = p[0][0]
-#            p0 = p[0][1]
-#            if BW[p0, p1] > 0:                        
-#                retval, rect = cv2.floodFill(image=BW, mask=floodfillMask, seedPoint=(p1, p0), newVal=0, flags=cv2.FLOODFILL_FIXED_RANGE)
-#        return BW
-
-
-#    def _reinitEvenSample(self, N):
-#        indices = self.getGoodNumbers()
-#        years = [self._get(n)['year'] for n in indices]
-#        binidx = np.asarray(np.floor(np.asarray(years)/10), dtype=np.int)
-#        bins = {}
-#        for b, i in zip(binidx, indices):
-#            if b in bins:
-#                bins[b].append(i)
-#            else:
-#                bins[b] = [i]
-#        from random import shufflej
-#        for k in bins.keys():
-#            shuffle(bins[k])
-#        self._evensample = []
-#        while len(self._evensample) < N:
-#            for k in bins.keys():
-#                if len(self._evensample) < N and len(bins[k]) > 0:
-#                    self._evensample.append(bins[k].pop())
-#    
-#    def getEvenSampleNumbers(self, N = 1000):
-#        """Returns the id numbers of a sample of some size 
-#        that is a evenly sampled in years as possible"""
-#        if (self._evensample is not None and len(self._evensample) != N) or \
-#                self._evensample is None:
-#            self._reinitEvenSample(N)
-#        # Return a copy
-#        return list(self._evensample)
-
 if __name__ == '__main__':
     tmp_path = "~/tmp"
     lowdef_path = """/media/fredrik/UB Storage/Images/SDHK/LowDef"""
@@ -461,7 +218,7 @@ if __name__ == '__main__':
     savefile = os.path.join(tmp_path, "sdhk_metadata.json.gz")
     harvester = SDHKHarvester(savefile)
     # Popluate
-    dl_keys = [n for n in range(1, 50000) if n not in harvester.keys()]
+    dl_keys = list(set(range(1, 50000)).difference(set(harvester.keys())))
     harvester.download(dl_keys)
     print("%i good ids in database" % (len(harvester.get_good_ids())))
     print("%i text entries in database" % 
@@ -483,7 +240,10 @@ if __name__ == '__main__':
     plt.figure()
     plt.rc('text', usetex=True)
     plt.rc('font', family='serif')
+    plt.title("Length of transcribed texts")
     plt.hist(text_lengths, 100)
+    plt.xlabel('Lenght in characters')
+    plt.ylabel('Number of documents')
     plt.xlim(np.min(text_lengths), np.max(text_lengths))
     plt.show()
 
@@ -494,9 +254,8 @@ if __name__ == '__main__':
     plt.figure()
     plt.rc('text', usetex=True)
     plt.rc('font', family='serif')
-
+    plt.title("SHDK documents per years")
     plt.hist(years, 200)
-
     plt.xlabel('Year')
     plt.ylabel('Number of documents')
 #    plt.xlim(1135, 1546)
