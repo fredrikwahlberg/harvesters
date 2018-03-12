@@ -203,18 +203,21 @@ class SDHKHarvester():
             self.data[str(k)]['lowdefpath'] = d[k]
 
     def remove_bad_paths(self):
+        m = 0
         for n in self.data.keys():
             for e in ['lowdefpath', 'highdefpath']:
                 if e in self.data[n].keys() and not os.path.exists(self.data[n][e]):
                     self.data[n].pop(e)
+                    m += 1
+        return m
 
 
 if __name__ == '__main__':
-    data_path = os.path.expanduser("~/Data/SDHK")
-    assert os.path.exists(data_path)
-    lowdef_path = """/media/fredrik/UB Storage/Images/SDHK/LowDef"""
-    highdef_path = """/media/fredrik/UB Storage/Images/SDHK/HighDef"""
-    savefile = os.path.join(data_path, "metadata.json.gz")
+    sdhk_path = os.path.expanduser("~/Data/SDHK")
+    assert os.path.exists(sdhk_path)
+    lowdef_path = os.path.join(sdhk_path, "LowDef")
+    highdef_path = os.path.join(sdhk_path, "HighDef")
+    savefile = os.path.join(sdhk_path, "metadata.json.gz")
     harvester = SDHKHarvester(savefile)
     # Popluate
     dl_keys = list(set(range(1, 50000)).difference(set(harvester.keys())))
@@ -222,6 +225,7 @@ if __name__ == '__main__':
     print("%i good ids in database" % (len(harvester.get_good_ids())))
     print("%i text entries in database" % 
           (np.sum([harvester[n]['textcontent'] is not None and len(harvester[n]['textcontent'])>50 for n in harvester.get_good_ids()])))
+    print("%i bad paths removed form database" % harvester.remove_bad_paths())
     if os.path.exists(lowdef_path):
         harvester.scan_lowdef_path(lowdef_path)
     print("%i low def images in database" % 
@@ -236,6 +240,7 @@ if __name__ == '__main__':
     text_ids = [n for n in harvester.get_good_ids() if harvester[n]['textcontent'] is not None]
     text_lengths = [len(harvester[n]['textcontent']) for n in text_ids]
     import matplotlib.pyplot as plt
+    # TODO Not really per year
     plt.figure()
     plt.rc('text', usetex=True)
     plt.rc('font', family='serif')
@@ -245,8 +250,10 @@ if __name__ == '__main__':
     plt.ylabel('Number of documents')
     plt.xlim(np.min(text_lengths), np.max(text_lengths))
     plt.show()
+    plt.savefig(os.path.join(sdhk_path, "length_of_transcriptions.pdf"), bbox_inches='tight')
 
     #%% Plot histogram of years for all entries in SDHK
+    # TODO Not really per year
     dated_ids = [n for n in harvester.get_good_ids() if 0 < harvester[n]['year'] and harvester[n]['year'] <= 1661]
     years = [harvester[n]['year']  for n in dated_ids]
     import matplotlib.pyplot as plt
@@ -257,9 +264,10 @@ if __name__ == '__main__':
     plt.hist(years, 200)
     plt.xlabel('Year')
     plt.ylabel('Number of documents')
+    plt.xlim(np.min(years), np.max(years))
 #    plt.xlim(1135, 1546)
     plt.show()
-#    plt.savefig("sdhk.pdf")
+    plt.savefig(os.path.join(sdhk_path, "charters_per_year.pdf"), bbox_inches='tight')
 
     #%% Plot months
     months = ['januari', 'februari', 'mars', 'april', 'maj', 'juni', 'juli', 
