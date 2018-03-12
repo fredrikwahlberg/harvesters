@@ -210,12 +210,11 @@ class SDHKHarvester():
 
 
 if __name__ == '__main__':
-    tmp_path = "~/tmp"
+    data_path = os.path.expanduser("~/Data/SDHK")
+    assert os.path.exists(data_path)
     lowdef_path = """/media/fredrik/UB Storage/Images/SDHK/LowDef"""
     highdef_path = """/media/fredrik/UB Storage/Images/SDHK/HighDef"""
-    tmp_path  = os.path.expanduser(tmp_path)
-    assert os.path.exists(tmp_path)
-    savefile = os.path.join(tmp_path, "sdhk_metadata.json.gz")
+    savefile = os.path.join(data_path, "metadata.json.gz")
     harvester = SDHKHarvester(savefile)
     # Popluate
     dl_keys = list(set(range(1, 50000)).difference(set(harvester.keys())))
@@ -261,3 +260,22 @@ if __name__ == '__main__':
 #    plt.xlim(1135, 1546)
     plt.show()
 #    plt.savefig("sdhk.pdf")
+
+    #%% Plot months
+    months = ['januari', 'februari', 'mars', 'april', 'maj', 'juni', 'juli', 
+              'augusti', 'september', 'oktober', 'november', 'december']
+    month = dict()
+    s = [n for n in harvester.get_good_ids() if 'date_as_text' in harvester[n]]
+#    s = s[:1000]
+    for n in s:
+        for i, m in enumerate(months):
+            if harvester[n]['date_as_text'].find(m)>=0:
+                month[n] = i
+    #%%
+    m = list()
+    for k in month.keys():
+#        if month[k]>0:
+        m.append(month[k])
+    h = [0]*12
+    for n in m:
+        h[n]+=1
