@@ -10,6 +10,7 @@ import os
 import os.path
 import re
 import numpy as np
+from multiprocessing import Pool
 
 def download_metadata(number):
     return_dict = {'sdhk' : number}
@@ -136,7 +137,6 @@ class SDHKHarvester():
     def download(self, number):
         assert type(number) == type(list()) or type(number) == int
         if type(number) == type(list()):
-            from multiprocessing import Pool
             with Pool(processes=os.cpu_count()*2) as pool:
                 for d in pool.imap_unordered(download_metadata, number):
                     print("Downloading (using Pool) meta data for %i" % d['sdhk'])
@@ -250,40 +250,76 @@ if __name__ == '__main__':
     plt.ylabel('Number of documents')
     plt.xlim(np.min(text_lengths), np.max(text_lengths))
     plt.show()
-    plt.savefig(os.path.join(sdhk_path, "length_of_transcriptions.pdf"), bbox_inches='tight')
+#    plt.savefig(os.path.join(sdhk_path, "length_of_transcriptions.pdf"), bbox_inches='tight')
 
     #%% Plot histogram of years for all entries in SDHK
-    # TODO Not really per year
     dated_ids = [n for n in harvester.get_good_ids() if 0 < harvester[n]['year'] and harvester[n]['year'] <= 1661]
     years = [harvester[n]['year']  for n in dated_ids]
     import matplotlib.pyplot as plt
     plt.figure()
     plt.rc('text', usetex=True)
     plt.rc('font', family='serif')
-    plt.title("SHDK documents per years")
-    plt.hist(years, 200)
+    plt.title("SHDK charters per decade")
+    plt.hist(years, list(range(np.min(years)//10*10, np.max(years)//10*10, 10)))
     plt.xlabel('Year')
-    plt.ylabel('Number of documents')
+    plt.ylabel('Number of charters')
     plt.xlim(np.min(years), np.max(years))
 #    plt.xlim(1135, 1546)
     plt.show()
-    plt.savefig(os.path.join(sdhk_path, "charters_per_year.pdf"), bbox_inches='tight')
+#    plt.savefig(os.path.join(sdhk_path, "charters_per_year.pdf"), bbox_inches='tight')
 
     #%% Plot months
+    dates_as_text = [harvester[n]['date_as_text'] for n in harvester.get_good_ids() if 'date_as_text' in harvester[n]]
+    from datetime import datetime
+    import locale
+    locale.setlocale(locale.LC_TIME, "sv_SE") 
+    def get_date(text):
+        try:
+            return datetime.strptime(text, '%Y %B %d')    
+        except:
+            return None
+    dates = [date for date in list(map(get_date, dates_as_text)) if date is not None]
+
+    month_histogram = [0]*12
+    for date in dates:
+        month_histogram[date.month-1] += 1
+
     months = ['januari', 'februari', 'mars', 'april', 'maj', 'juni', 'juli', 
               'augusti', 'september', 'oktober', 'november', 'december']
-    month = dict()
-    s = [n for n in harvester.get_good_ids() if 'date_as_text' in harvester[n]]
-#    s = s[:1000]
-    for n in s:
-        for i, m in enumerate(months):
-            if harvester[n]['date_as_text'].find(m)>=0:
-                month[n] = i
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots()
+    plt.rc('text', usetex=True)
+    plt.rc('font', family='serif')
+    bars = ax.bar(list(range(12)), month_histogram)
+    ax.set_title('SHDK charters per month')
+    ax.set_ylabel('Number of charters')
+    ax.set_xticks(list(range(12)))
+    ax.set_xticklabels(months)
+    plt.show()
+#    plt.savefig(os.path.join(sdhk_path, "charters_per_month.pdf"), bbox_inches='tight')
     #%%
-    m = list()
-    for k in month.keys():
-#        if month[k]>0:
-        m.append(month[k])
-    h = [0]*12
-    for n in m:
-        h[n]+=1
+#    pip install convertdate
+    from convertdate import julian
+    def to_gregorian_weekday(date):
+        j = julian.to_gregorian(date.year, date.month, date.day)
+        return date.replace(year=j[0], month=j[1], day=j[2]).weekday()
+    weekdays = list(map(to_gregorian_weekday, dates))
+#    weekdays =   
+#    d.strftime("%A")
+    weekday_histogram = [0]*len(np.unique(weekdays))
+    for weekday in weekdays:
+        weekday_histogram[weekday] += 1
+    
+    weekday_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots()
+    plt.rc('text', usetex=True)
+    plt.rc('font', family='serif')
+    bars = ax.bar(list(range(7)), weekday_histogram)
+    ax.set_title('SHDK charters per weekday')
+    ax.set_ylabel('Number of charters')
+    ax.set_xticks(list(range(7)))
+    ax.set_xticklabels(weekday_names)
+    plt.show()
+#    plt.savefig(os.path.join(sdhk_path, "charters_per_weekday.pdf"), bbox_inches='tight')
+    
