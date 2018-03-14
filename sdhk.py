@@ -68,12 +68,6 @@ def download_metadata(number):
         lang = getMetaDataFromTemplate(response_content, "<h5>Språk</h5><p>")
         place = getMetaDataFromTemplate(response_content, """<h5>Utfärdandeort</h5><span class="sdhk-brevhuvud">""")
         textcontent = getMetaDataFromTemplate(response_content, """<h5>Brevtext</h5><div class="sdhk-brevtext"><p>""")
-    #            self._set(number, 'metadata_status_code', response.status_code)
-    #            self._set(number, 'date_as_text', date_as_text)
-    #            self._set(number, 'year', year)
-    #            self._set(number, 'language', lang)
-    #            self._set(number, 'origin', place)
-    #            self._set(number, 'textcontent', textcontent)
         return_dict['metadata_status_code'] = response.status_code
         return_dict['date_as_text'] = date_as_text
         return_dict['year'] = year
@@ -96,6 +90,9 @@ def download_metadata(number):
     except:
         return_dict['exception'] = True
     return return_dict
+
+# TODO Clean
+# TODO Check reprname
 
 class SDHKHarvester():
     def __init__(self, savefile):
