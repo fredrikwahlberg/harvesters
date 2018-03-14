@@ -239,11 +239,11 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     # TODO Not really per year
     plt.figure()
-    plt.rc('text', usetex=True)
-    plt.rc('font', family='serif')
+#    plt.rc('text', usetex=True)
+#    plt.rc('font', family='serif')
     plt.title("Length of transcribed texts")
     plt.hist(text_lengths, 100)
-    plt.xlabel('Lenght in characters')
+    plt.xlabel('Length of character')
     plt.ylabel('Number of documents')
     plt.xlim(np.min(text_lengths), np.max(text_lengths))
     plt.show()
@@ -254,8 +254,8 @@ if __name__ == '__main__':
     years = [harvester[n]['year']  for n in dated_ids]
     import matplotlib.pyplot as plt
     plt.figure()
-    plt.rc('text', usetex=True)
-    plt.rc('font', family='serif')
+#    plt.rc('text', usetex=True)
+#    plt.rc('font', family='serif')
     plt.title("SHDK charters per decade")
     plt.hist(years, list(range(np.min(years)//10*10, np.max(years)//10*10, 10)))
     plt.xlabel('Year')
@@ -285,8 +285,8 @@ if __name__ == '__main__':
               'augusti', 'september', 'oktober', 'november', 'december']
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots()
-    plt.rc('text', usetex=True)
-    plt.rc('font', family='serif')
+#    plt.rc('text', usetex=True)
+#    plt.rc('font', family='serif')
     bars = ax.bar(list(range(12)), month_histogram)
     ax.set_title('SHDK charters per month')
     ax.set_ylabel('Number of charters')
@@ -310,8 +310,8 @@ if __name__ == '__main__':
     weekday_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots()
-    plt.rc('text', usetex=True)
-    plt.rc('font', family='serif')
+#    plt.rc('text', usetex=True)
+#    plt.rc('font', family='serif')
     bars = ax.bar(list(range(7)), weekday_histogram)
     ax.set_title('SHDK charters per weekday')
     ax.set_ylabel('Number of charters')
