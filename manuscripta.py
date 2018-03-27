@@ -20,7 +20,14 @@ MANIFEST_URLS = ["https://www.manuscripta.se/iiif/collection-ttt.json"]
 def download_image(data):
     url, filename = data
     import urllib.request
-    return urllib.request.urlretrieve(url, filename)
+    try:
+        urllib.request.urlretrieve(url, filename)
+    except:
+        pass
+    if os.path.exists(filename):
+        return os.path.getsize(filename)
+    else:
+        return 0
 
 class Manuscripta:
     def __init__(self, basepath):
@@ -171,15 +178,17 @@ class Manuscripta:
                     self._n_errors += 1
         return download_list
 
-    def download_images(self, download_list):
+    def download_images(self, download_list=None):
+        if download_list is None:
+            download_list= self.check_filenames()
         for e in download_list:
             dirname = os.path.dirname(e[1])
             if not (os.path.exists(dirname) and os.path.isdir(dirname)):
                 os.makedirs(dirname)
-        with Pool(processes=os.cpu_count()*2) as pool:
+        with Pool(processes=os.cpu_count()-1) as pool:
             dl_bytes = 0
-            for i, d in enumerate(pool.imap_unordered(download_image, download_list)):
-                dl_bytes += os.path.getsize(d[0])
+            for i, nbytes in enumerate(pool.imap_unordered(download_image, download_list)):
+                dl_bytes += nbytes
                 if i%10==0:
                     print("Downloaded %i files of %i, %.1f Mb" % (i, len(download_list), dl_bytes/1000000))
         self.check_filenames()
@@ -188,14 +197,18 @@ if __name__=='__main__':
     BASEPATH = os.path.expanduser("~/Data/Manuscripta")
     assert os.path.exists(BASEPATH) and os.path.isdir(BASEPATH)
     manuscripta = Manuscripta(BASEPATH)
-    manuscripta.populate()
+#    manuscripta.populate()
 
-#    dl_list = manuscripta.check_filenames()
+    manuscripta.download_images()
+#    download_list = manuscripta.check_filenames()
 #    import random
-#    random.shuffle(dl_list)
-#    dl_list = dl_list[:50]
-#    manuscripta.download_images(dl_list)
-    
+#    random.shuffle(download_list)
+#    dl_bytes = 0
+#    for i, d in enumerate(download_list):
+#        download_image(d)
+#        dl_bytes += os.path.getsize(d[1])
+#        if i%10==0:
+#            print("Downloaded %i files of %i, %.1f Mb" % (i, len(download_list), dl_bytes/1000000))
     manuscripta.save()
     
     print(manuscripta)
