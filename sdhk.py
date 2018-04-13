@@ -2,7 +2,7 @@
 """
 Data harvester for 'Svenskt Diplomatariums Huvudkartotek' (SDHK)
 
-@author: Fredrik Wahlberg <fredrik.wahlberg@it.uu.se>
+@author: Fredrik Wahlberg <fredrik.wahlberg@lingfil.uu.se>
 """
 
 import requests
@@ -15,8 +15,9 @@ from multiprocessing import Pool
 # TODO Fix locale compatability
 # TODO Look for more digitized material
 
+
 def download_metadata(number):
-    return_dict = {'sdhk' : number}
+    return_dict = {'sdhk': number}
     try:
         #http://sok.riksarkivet.se/SDHK?EndastDigitaliserat=true&DatumTill=1535&Brevtext=true&Extratext=true&Sigill=true&Original=true&MedeltidaAvskrifter=false&MedeltidaRegest=false&Brocman=false&Hadorph=false&Peringskiold=false&Ornhielm=true&OvrMedeltidaAvskrifter=true&OvrMedeltidaRegest=true&TrycktUtgava=true&TrycktRegest=true&AvanceradSok=true&page=1&postid=Dipl_24744&tab=post
     #            metadataurl1 = "http://sok.riksarkivet.se/SDHK?EndastDigitaliserat=true&DatumTill=1535&Brevtext=true&Extratext=true&Sigill=true&Original=true&MedeltidaAvskrifter=false&MedeltidaRegest=false&Brocman=false&Hadorph=false&Peringskiold=false&Ornhielm=true&OvrMedeltidaAvskrifter=true&OvrMedeltidaRegest=true&TrycktUtgava=true&TrycktRegest=true&AvanceradSok=true&page=1&postid=Dipl_"
@@ -27,6 +28,7 @@ def download_metadata(number):
         url = url1 + str(number) + url2 + str(number) + url3
         response = requests.get(url)
         response_content = response.content.decode('utf-8')
+
         # Find place, language and content
         def getMetaDataFromTemplate(response_content, markerTemplate):
             # Find the first template occurence
@@ -55,8 +57,9 @@ def download_metadata(number):
             else:
                 return None
         # Find the date
-        date_as_text = getMetaDataFromTemplate(response_content, """<h5>Datering</h5><span class="sdhk-brevhuvud">""")
-        date_as_text = [s for s in date_as_text if s.isalnum() or s==' ']
+        date_as_text = getMetaDataFromTemplate(response_content,
+                                               """<h5>Datering</h5><span class="sdhk-brevhuvud">""")
+        date_as_text = [s for s in date_as_text if s.isalnum() or s == ' ']
         n = 1
         while n < len(date_as_text):
             if date_as_text[n-1].isspace() and date_as_text[n].isspace():
@@ -69,15 +72,17 @@ def download_metadata(number):
         else:
             year = None
         lang = getMetaDataFromTemplate(response_content, "<h5>Språk</h5><p>")
-        place = getMetaDataFromTemplate(response_content, """<h5>Utfärdandeort</h5><span class="sdhk-brevhuvud">""")
-        textcontent = getMetaDataFromTemplate(response_content, """<h5>Brevtext</h5><div class="sdhk-brevtext"><p>""")
+        place = getMetaDataFromTemplate(response_content,
+                                        """<h5>Utfärdandeort</h5><span class="sdhk-brevhuvud">""")
+        textcontent = getMetaDataFromTemplate(response_content,
+                                              """<h5>Brevtext</h5><div class="sdhk-brevtext"><p>""")
         return_dict['metadata_status_code'] = response.status_code
         return_dict['date_as_text'] = date_as_text
         return_dict['year'] = year
         return_dict['language'] = lang
         return_dict['origin'] = place
         return_dict['textcontent'] = textcontent
-        # Find url to printed text            
+        # Find url to printed text
     #            markerTemplate = "<b>Tryckt</b>"
     #            idx = response.content.find(markerTemplate)
     #            printedurl = None
@@ -97,6 +102,7 @@ def download_metadata(number):
 # TODO Clean
 # TODO Check reprname
 
+
 class SDHKHarvester():
     def __init__(self, savefile):
         self.reprname = "'Svenskt Diplomatariums Huvudkartotek'"
@@ -115,9 +121,9 @@ class SDHKHarvester():
         import gzip
         import json
         with gzip.open(self.savefile, 'w') as f:
-            f.write(json.dumps(self.data, sort_keys=True, indent=2, 
+            f.write(json.dumps(self.data, sort_keys=True, indent=2,
                                separators=(',', ': ')).encode('utf-8'))
-            
+
 #    def _set(self, number, key, value):
 #        if number in self.data.keys():
 #            self.data[number][key] = value
@@ -129,17 +135,18 @@ class SDHKHarvester():
 #        response = requests.get(url)
 #        self._set(number, 'lowdef_status_code', response.status_code)
 #        if response.status_code == 200:
-#            f = open(os.path.join(self._lowDefPath, str(number) + ".jpg"), 'w')
+#            f = open(os.path.join(self._lowDefPath, str(number) + ".jpg"),'w')
 #            f.write(response.content)
 #            f.close()
 #        return response.status_code
 
     def download(self, number):
-        assert type(number) == type(list()) or type(number) == int
-        if type(number) == type(list()):
+        assert isinstance(number, list) or isinstance(number, int)
+        if isinstance(number, list):
             with Pool(processes=os.cpu_count()*2) as pool:
                 for d in pool.imap_unordered(download_metadata, number):
-                    print("Downloading (using Pool) meta data for %i" % d['sdhk'])
+                    print("Downloading (using Pool) meta data for %i" %
+                          d['sdhk'])
                     if str(d['sdhk']) not in self.data.keys():
                         self.data[str(d['sdhk'])] = dict()
                     for k in d.keys():
@@ -161,12 +168,13 @@ class SDHKHarvester():
         return copy.copy(self._good_ids)
 
     def _update_good_ids(self):
-        self._good_ids = [int(k) for k in self.data.keys() 
-            if not self.data[k]['exception'] and self.data[k]['metadata_status_code']==200]
+        self._good_ids = [int(k) for k in self.data.keys()
+                          if not self.data[k]['exception'] and
+                          self.data[k]['metadata_status_code'] == 200]
 
     def keys(self):
         return [int(n) for n in self.data.keys()]
-    
+
     def clear(self):
         self.data = dict()
 
@@ -191,7 +199,7 @@ class SDHKHarvester():
                 except:
                     pass
         return found
-        
+
     def scan_highdef_path(self, basepath):
         d = self._scan_path(basepath)
         for k in d.keys():
@@ -206,7 +214,17 @@ class SDHKHarvester():
         m = 0
         for n in self.data.keys():
             for e in ['lowdefpath', 'highdefpath']:
-                if e in self.data[n].keys() and not os.path.exists(self.data[n][e]):
+                if e in self.data[n].keys():
+                    if not os.path.exists(self.data[n][e]):
+                        self.data[n].pop(e)
+                        m += 1
+        return m
+
+    def remove_image_paths(self):
+        m = 0
+        for n in self.data.keys():
+            for e in ['lowdefpath', 'highdefpath']:
+                if e in self.data[n].keys():
                     self.data[n].pop(e)
                     m += 1
         return m
@@ -216,29 +234,33 @@ if __name__ == '__main__':
     sdhk_path = os.path.expanduser("~/Data/SDHK")
     assert os.path.exists(sdhk_path)
     lowdef_path = os.path.join(sdhk_path, "LowDef")
-    highdef_path = os.path.join(sdhk_path, "HighDef")
+    highdef_path = os.path.join(sdhk_path, "HighDef_png")
     savefile = os.path.join(sdhk_path, "metadata.json.gz")
     harvester = SDHKHarvester(savefile)
     # Popluate
     dl_keys = list(set(range(1, 50000)).difference(set(harvester.keys())))
     harvester.download(dl_keys)
     print("%i good ids in database" % (len(harvester.get_good_ids())))
-    print("%i text entries in database" % 
-          (np.sum([harvester[n]['textcontent'] is not None and len(harvester[n]['textcontent'])>50 for n in harvester.get_good_ids()])))
+    print("%i text entries in database" %
+          (np.sum([harvester[n]['textcontent'] is not None
+           and len(harvester[n]['textcontent']) > 50
+           for n in harvester.get_good_ids()])))
     print("%i bad paths removed form database" % harvester.remove_bad_paths())
     if os.path.exists(lowdef_path):
         harvester.scan_lowdef_path(lowdef_path)
-    print("%i low def images in database" % 
-          (np.sum(['lowdefpath' in harvester[n] for n in harvester.get_good_ids()])))
+    print("%i low def images in database" %
+          (np.sum(['lowdefpath' in harvester[n]
+                   for n in harvester.get_good_ids()])))
     if os.path.exists(highdef_path):
         harvester.scan_highdef_path(highdef_path)
-    print("%i high def images in database" % 
-          (np.sum(['highdefpath' in harvester[n] for n in harvester.get_good_ids()])))
+    print("%i high def images in database" %
+          (np.sum(['highdefpath' in harvester[n]
+                   for n in harvester.get_good_ids()])))
     harvester.save()
 
-    #https://lbiiif.riksarkivet.se/sdhk!1094/manifest
-    
-    #%% Plot histogram over text lengths
+    # https://lbiiif.riksarkivet.se/sdhk!1094/manifest
+
+    # %% Plot histogram over text lengths
     text_ids = [n for n in harvester.get_good_ids() if harvester[n]['textcontent'] is not None]
     text_lengths = [len(harvester[n]['textcontent']) for n in text_ids]
     import matplotlib.pyplot as plt
@@ -251,11 +273,14 @@ if __name__ == '__main__':
     plt.ylabel('Number of documents')
     plt.xlim(np.min(text_lengths), np.max(text_lengths))
     plt.show()
-#    plt.savefig(os.path.join(sdhk_path, "length_of_transcriptions.pdf"), bbox_inches='tight')
+#    plt.savefig(os.path.join(sdhk_path, "length_of_transcriptions.pdf"),
+#                bbox_inches='tight')
 
-    #%% Plot histogram of years for all entries in SDHK
-    dated_ids = [n for n in harvester.get_good_ids() if 0 < harvester[n]['year'] and harvester[n]['year'] <= 1661]
-    years = [harvester[n]['year']  for n in dated_ids]
+    # %% Plot histogram of years for all entries in SDHK
+    dated_ids = [n for n in harvester.get_good_ids()
+                 if 0 < harvester[n]['year'] and
+                 harvester[n]['year'] <= 1661]
+    years = [harvester[n]['year'] for n in dated_ids]
     import matplotlib.pyplot as plt
     plt.figure()
 #    plt.rc('text', usetex=True)
