@@ -261,7 +261,8 @@ if __name__ == '__main__':
     # https://lbiiif.riksarkivet.se/sdhk!1094/manifest
 
     # %% Plot histogram over text lengths
-    text_ids = [n for n in harvester.get_good_ids() if harvester[n]['textcontent'] is not None]
+    text_ids = [n for n in harvester.get_good_ids()
+                if harvester[n]['textcontent'] is not None]
     text_lengths = [len(harvester[n]['textcontent']) for n in text_ids]
     import matplotlib.pyplot as plt
     plt.figure()
@@ -286,7 +287,8 @@ if __name__ == '__main__':
 #    plt.rc('text', usetex=True)
 #    plt.rc('font', family='serif')
     plt.title("SHDK charters per decade")
-    plt.hist(years, list(range(np.min(years)//10*10, np.max(years)//10*10, 10)))
+    plt.hist(years,
+             list(range(np.min(years)//10*10, np.max(years)//10*10, 10)))
     plt.xlabel('Year')
     plt.ylabel('Number of charters')
     plt.xlim(np.min(years), np.max(years))
