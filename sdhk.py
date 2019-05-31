@@ -14,6 +14,7 @@ from multiprocessing import Pool
 
 # TODO Fix locale compatability
 # TODO Look for more digitized material
+# TODO Redo parsing as regex, r'<p>(.*)</p>'
 
 
 def download_metadata(number):
@@ -76,12 +77,17 @@ def download_metadata(number):
                                         """<h5>Utfärdandeort</h5><span class="sdhk-brevhuvud">""")
         textcontent = getMetaDataFromTemplate(response_content,
                                               """<h5>Brevtext</h5><div class="sdhk-brevtext"><p>""")
+        regest_search_regex = r'<h5>Innehåll<\/h5><div class="sdhk-innehall"><p>(.*?)<\/p>'
+        remove_tags_regex = r'<(.*?)>'
+        regest = re.sub(remove_tags_regex, '', re.findall(regest_search_regex, response_content)[0])
+
         return_dict['metadata_status_code'] = response.status_code
         return_dict['date_as_text'] = date_as_text
         return_dict['year'] = year
         return_dict['language'] = lang
         return_dict['origin'] = place
         return_dict['textcontent'] = textcontent
+        return_dict['regest'] = regest
         # Find url to printed text
     #            markerTemplate = "<b>Tryckt</b>"
     #            idx = response.content.find(markerTemplate)
@@ -145,15 +151,15 @@ class SDHKHarvester():
         if isinstance(number, list):
             with Pool(processes=os.cpu_count()*2) as pool:
                 for d in pool.imap_unordered(download_metadata, number):
-                    print("Downloading (using Pool) meta data for %i" %
+                    print("Downloaded (using Pool) meta data for %i" %
                           d['sdhk'])
                     if str(d['sdhk']) not in self.data.keys():
                         self.data[str(d['sdhk'])] = dict()
                     for k in d.keys():
                         self.data[str(d['sdhk'])][k] = d[k]
         else:
-            print("Downloading meta data for %i" % d['sdhk'])
             d = download_metadata(number)
+            print("Downloaded meta data for %i" % d['sdhk'])
             if str(d['sdhk']) not in self.data.keys():
                 self.data[str(d['sdhk'])] = dict()
             for k in d.keys():
