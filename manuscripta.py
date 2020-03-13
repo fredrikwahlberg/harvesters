@@ -1,25 +1,21 @@
 # -*- coding: utf-8 -*-
-import requests
+import urllib.request
 import re
 import os.path
 import json
 import gzip
 import copy
 from multiprocessing import Pool
-import os
 
-# TODO Check for multiple language tags
 # TODO Fix decoding bug
+# TODO Very little debugging/testing is done
 
-#MANIFEST_URLS = ["https://www.manuscripta.se/iiif/collection.json",
-#"https://www.manuscripta.se/iiif/collection-ttt.json",
-#"https://www.manuscripta.se/iiif/collection-greek.json"]
+BASEURL = """https://www.manuscripta.se/iiif/"""
+manifest_url = lambda n: BASEURL + str(n) + """/manifest.json"""
 
-MANIFEST_URLS = ["https://www.manuscripta.se/iiif/collection-ttt.json"]
-
-def download_image(data):
+def _download_image(data):
+    """Downloads an image to the database"""
     url, filename = data
-    import urllib.request
     try:
         urllib.request.urlretrieve(url, filename)
     except:
@@ -28,6 +24,24 @@ def download_image(data):
         return os.path.getsize(filename)
     else:
         return 0
+
+def _webget(url):
+    """Fetches and decodes text files from the internet"""
+    try:
+        with urllib.request.urlopen(url, timeout=10) as response:
+            data = response.read().decode('utf-8', errors='replace')
+        return data
+    except:
+        print("Error while getting or decoding data from url %s" % url)
+        return None
+
+def _webget_json(url):
+    """Fetches and decodes JSON files from the internet"""
+    try:
+        return json.loads(_webget(url))
+    except:
+        print("Error while decoding JSON from url %s" % url) 
+        return None
 
 class Manuscripta:
     def __init__(self, basepath):
@@ -38,24 +52,8 @@ class Manuscripta:
                 self._data = json.loads(f.read().decode('utf-8'))
         else:
             self._data = dict()
-        self._manifests = None
+        # self._manifests = None
         self._n_images = None
-
-    def _webget(self, url):
-        response = requests.get(url)
-        assert response.ok, "Error reading url %s" % url
-        try:
-            return response.content.decode('utf-8', errors='replace')
-        except:
-            print("Error while decoding url %s" % url) 
-            return None
-
-    def _webget_json(self, url):
-        try:
-            return json.loads(self._webget(url))
-        except:
-            print("Error while JSON decoding url %s" % url) 
-            return None
 
     def save(self):
         import gzip
@@ -78,9 +76,8 @@ class Manuscripta:
         return copy.deepcopy(self._data[str(number)])
 
     def populate(self):
-        self.load_manifests()
-        for man in self.load_manifests():
-            manifest_data = self._webget_json(man['@id'])
+        numbers = self._download_manifest_numbers()
+        for manifest_data in self._download_manifests(numbers):
             if manifest_data is not None:
                 collection_id = int(manifest_data['@id'].split('/')[-2])
                 label = manifest_data['label']
@@ -92,19 +89,19 @@ class Manuscripta:
                 date = None
                 support = None
                 extent = None
-                for d in manifest_data['metadata']:
-                    if d['label'] == 'Shelfmark':
-                        shelfmark = d['value']
-                    if d['label'] == 'Language':
-                        language = d['value']
-                    if d['label'] == 'Title':
-                        title = d['value']
-                    if d['label'] == 'Date':
-                        date = d['value']
-                    if d['label'] == 'Support':
-                        support = d['value']
-                    if d['label'] == 'Extent':
-                        extent = d['value']
+                for metadata_item in manifest_data['metadata']:
+                    if metadata_item['label'].lower().find("shelfmark") >= 0:
+                        shelfmark = metadata_item['value']
+                    if metadata_item['label'].lower().find("language") >= 0:
+                        language = metadata_item['value']
+                    if metadata_item['label'].lower().find("title") >= 0:
+                        title = metadata_item['value']
+                    if metadata_item['label'].lower().find("date") >= 0:
+                        date = metadata_item['value']
+                    if metadata_item['label'].lower().find("support") >= 0:
+                        support = metadata_item['value']
+                    if metadata_item['label'].lower().find("extent") >= 0:
+                        extent = metadata_item['value']
                 images = list()
                 for canvas in manifest_data['sequences'][0]['canvases']:
                     images.append({'width':canvas['images'][0]['resource']['width'],
@@ -124,11 +121,30 @@ class Manuscripta:
                                                     'images':images}
         self.check_filenames()
 
-    def load_manifests(self):
-        self._manifests = list()
-        for man_url in MANIFEST_URLS:
-            self._manifests.extend(self._webget_json(man_url)['manifests'])
-        return self._manifests
+    def _download_manifest_numbers(self):
+        """Downloads the numbers of all manifests"""
+        # Loading manifest list
+        with urllib.request.urlopen(BASEURL) as response:
+            base_xml = response.read().decode()
+        # Parse manufest numbers
+        p = r'ion name=\"(\d+)\"'
+        manifest_numbers = re.findall(p, base_xml)
+        assert type(manifest_numbers) is list
+        return manifest_numbers
+
+    def _download_manifests(self, numbers):
+        """Downloads manifests with numbers given as a list"""
+        assert type(numbers) is list
+        # Make urls to download
+        manifest_urls = list(map(manifest_url, numbers))
+        # Download in parallel
+        parsed_manifests = list()
+        with Pool(40) as pool:
+            for data in pool.imap_unordered(_webget_json, manifest_urls):
+                parsed_manifests.append(data)
+                if data is not None:
+                    print("Decoded", data['@id'])
+        return parsed_manifests
 
     @property
     def manifest_labels_(self):
@@ -185,9 +201,9 @@ class Manuscripta:
             dirname = os.path.dirname(e[1])
             if not (os.path.exists(dirname) and os.path.isdir(dirname)):
                 os.makedirs(dirname)
-        with Pool(processes=os.cpu_count()-1) as pool:
+        with Pool(processes=os.cpu_count()*2) as pool:
             dl_bytes = 0
-            for i, nbytes in enumerate(pool.imap_unordered(download_image, download_list)):
+            for i, nbytes in enumerate(pool.imap_unordered(_download_image, download_list)):
                 dl_bytes += nbytes
                 if i%10==0:
                     print("Downloaded %i files of %i, %.1f Mb" % (i, len(download_list), dl_bytes/1000000))
@@ -197,9 +213,10 @@ if __name__=='__main__':
     BASEPATH = os.path.expanduser("~/Data/Manuscripta")
     assert os.path.exists(BASEPATH) and os.path.isdir(BASEPATH)
     manuscripta = Manuscripta(BASEPATH)
-#    manuscripta.populate()
+    
+    # manuscripta.populate()
 
-    manuscripta.download_images()
+    # manuscripta.download_images()
 #    download_list = manuscripta.check_filenames()
 #    import random
 #    random.shuffle(download_list)
@@ -209,47 +226,12 @@ if __name__=='__main__':
 #        dl_bytes += os.path.getsize(d[1])
 #        if i%10==0:
 #            print("Downloaded %i files of %i, %.1f Mb" % (i, len(download_list), dl_bytes/1000000))
-    manuscripta.save()
+    # manuscripta.save()
     
     print(manuscripta)
     print("%i image, %.1f Mb" % (manuscripta.n_images_, manuscripta.n_bytes_/1e6))
 
     dates = [manuscripta[k]['date'] for k in manuscripta.keys()]
     languages = [manuscripta[k]['language'] for k in manuscripta.keys()]
-
-#    url = "https://www.manuscripta.se/iiif/100120/manifest.json"
-#    response = requests.get(url)
-#    text = response.content.decode('utf-8')
-#    json_dict = json.loads(text)
-
-
-#ms_ids = [int(ms) for ms in re.findall(r'(?i)<a href="\/ms\/([^>]+)">', 
-#                                          webget(browse_url))]
-#
-#tei_urls = ["https://www.manuscripta.se/xml/" + str(n) for n in ms_ids]
-#
-#t = tei_xml[160]
-#
-##"""<primaryAddress>[\s\S]*?<\/primaryAddress>"""
-#
-##re.findall(r'(?i)<surface ([^>]+)>(.+?)</surface>', t)
-#surfaces = [t[1] for t in re.findall(r'(?i)<surface ([^>]+?)>([\s\S]+?)</surface>', tei_xml[160])]
-#desc = [re.findall(r'(?i)<desc>(.+?)</desc>', s)[0] for s in surfaces]
-#g = [re.findall(r'(?i)<graphic ([^>]+)/>', s)[0] for s in surfaces]
-#o = g[0].split(' ')
-##p = dict()
-#for p in o:
-#    k, v = p.split('=')
-#    v = v.replace('"', '')
-#    
-#
-#def image_url(number, filename, width):
-#    return """https://www.manuscripta.se/iipsrv/iipsrv.fcgi?IIIF=""" + str(number) + """/""" + filename + """/full/""" + str(width) + """,/0/default.jpg"""
-#
-#image_url(100379, "uub-b-023_0003_001r.tif", 3530)
-#
-##%% lang
-#surfaces = [t[1] for t in re.findall(r'(?i)<surface ([^>]+?)>([\s\S]+?)</surface>', tei_xml[160])]
-#languages = [re.findall(r'(?i)<textLang mainLang="([^>]+)"/>', text) for text in tei_xml]
-
-#textLang mainLang=""
+    swe = [lang for lang in languages if lang.lower().find("swe")>=0 or lang.lower().find("sv")>=0]
+    print("%i manuscripts in swedish" % len(swe))
