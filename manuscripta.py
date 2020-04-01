@@ -218,25 +218,26 @@ if __name__=='__main__':
     assert os.path.exists(BASEPATH) and os.path.isdir(BASEPATH)
     manuscripta = Manuscripta(BASEPATH)
     
-    # manuscripta.populate()
-    # manuscripta.save()
+    manuscripta.populate()
+    manuscripta.save()
 
-    # manuscripta.download_images()
-#    download_list = manuscripta.check_filenames()
-#    import random
-#    random.shuffle(download_list)
-#    dl_bytes = 0
-#    for i, d in enumerate(download_list):
-#        download_image(d)
-#        dl_bytes += os.path.getsize(d[1])
-#        if i%10==0:
-#            print("Downloaded %i files of %i, %.1f Mb" % (i, len(download_list), dl_bytes/1000000))
-    # manuscripta.save()
+    dates = [manuscripta[k]['date'] for k in manuscripta.keys()]
+    languages = [manuscripta[k]['language'] for k in manuscripta.keys()]
+    isSwedish = lambda lang: lang.lower().find("swe")>=0 or lang.lower().find("sv")>=0
+    in_swedish = [k for k in manuscripta.keys() if isSwedish(manuscripta[k]['language'])]
+    print("%i manuscripts in swedish" % len(in_swedish))
+
+    # Download images from swedish sources
+    n_images = 50
+    if manuscripta.n_images_ < n_images :
+        download_list = manuscripta.check_filenames()
+        download_list = [e for e in download_list if int(e[1].split("/")[-2]) in in_swedish]
+        import random
+        random.shuffle(download_list)
+        download_list = download_list[:n_images-manuscripta.n_images_]
+        manuscripta.download_images(download_list)
+        manuscripta.save()
     
     print(manuscripta)
     print("DB contains %i image, %.1f Mb" % (manuscripta.n_images_, manuscripta.n_bytes_/1e6))
 
-    dates = [manuscripta[k]['date'] for k in manuscripta.keys()]
-    languages = [manuscripta[k]['language'] for k in manuscripta.keys()]
-    swe = [lang for lang in languages if lang.lower().find("swe")>=0 or lang.lower().find("sv")>=0]
-    print("%i manuscripts in swedish" % len(swe))
