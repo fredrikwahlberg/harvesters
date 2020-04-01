@@ -44,8 +44,9 @@ def _webget_json(url):
         return None
 
 class Manuscripta:
-    def __init__(self, basepath):
+    def __init__(self, basepath, verbose=True):
         self._basepath = basepath
+        self.verbose = verbose
         self._savefile = os.path.join(basepath, "metadata.json.gz")
         if os.path.exists(self._savefile):
             with gzip.open(self._savefile, 'r') as f:
@@ -139,10 +140,11 @@ class Manuscripta:
         manifest_urls = list(map(manifest_url, numbers))
         # Download in parallel
         parsed_manifests = list()
-        with Pool(40) as pool:
+        with Pool(processes=max(os.cpu_count()*10, 20)) as pool:
+        #with Pool(40) as pool:
             for data in pool.imap_unordered(_webget_json, manifest_urls):
                 parsed_manifests.append(data)
-                if data is not None:
+                if data is not None and self.verbose:
                     print("Decoded", data['@id'])
         return parsed_manifests
 
@@ -172,6 +174,8 @@ class Manuscripta:
         return ret
 
     def check_filenames(self):
+        """Runs an inventory over the image files
+        Returns a list over missing files and url and local file name"""
         self._n_errors = 0
         self._n_images = 0
         download_list = list()
@@ -201,12 +205,12 @@ class Manuscripta:
             dirname = os.path.dirname(e[1])
             if not (os.path.exists(dirname) and os.path.isdir(dirname)):
                 os.makedirs(dirname)
-        with Pool(processes=os.cpu_count()*2) as pool:
+        with Pool(processes=min(os.cpu_count()*4, 10)) as pool:
             dl_bytes = 0
             for i, nbytes in enumerate(pool.imap_unordered(_download_image, download_list)):
                 dl_bytes += nbytes
-                if i%10==0:
-                    print("Downloaded %i files of %i, %.1f Mb" % (i, len(download_list), dl_bytes/1000000))
+                if (i%10) == 9:
+                    print("Downloaded %i files of %i, %.1f Mb" % (i+1, len(download_list), dl_bytes/1000000))
         self.check_filenames()
 
 if __name__=='__main__':
@@ -215,6 +219,7 @@ if __name__=='__main__':
     manuscripta = Manuscripta(BASEPATH)
     
     # manuscripta.populate()
+    # manuscripta.save()
 
     # manuscripta.download_images()
 #    download_list = manuscripta.check_filenames()
@@ -229,7 +234,7 @@ if __name__=='__main__':
     # manuscripta.save()
     
     print(manuscripta)
-    print("%i image, %.1f Mb" % (manuscripta.n_images_, manuscripta.n_bytes_/1e6))
+    print("DB contains %i image, %.1f Mb" % (manuscripta.n_images_, manuscripta.n_bytes_/1e6))
 
     dates = [manuscripta[k]['date'] for k in manuscripta.keys()]
     languages = [manuscripta[k]['language'] for k in manuscripta.keys()]
